@@ -27,7 +27,7 @@ module et4351 (
 
 	reg       ser_rx_sync_int, ser_rx_sync;
 	reg       resetn_sync_int, resetn_sync;
-	//  2-state register delay
+
 	always @(posedge clk) begin
 		ser_rx_sync_int <= ser_rx;
 		ser_rx_sync     <= ser_rx_sync_int;
@@ -46,7 +46,7 @@ module et4351 (
 		.soc_i({flash_io3_di, flash_io2_di, flash_io1_di, flash_io0_di}),
 		.io({flash_io3, flash_io2, flash_io1, flash_io0})
 	);
-// Dfine the wires for the PicoSoc and accelerator to communicate with each other
+
 	wire        iomem_valid;
 	wire        iomem_ready;
 	wire [3:0]  iomem_wstrb;

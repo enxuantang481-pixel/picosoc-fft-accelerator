@@ -15,7 +15,7 @@
 #                                   #
 #####################################
 
-set CLK_PERIOD         83.33
+set CLK_PERIOD         16
 set QSPI_DIV           2
 
 set MAX_IO_DLY         5.0

@@ -10,7 +10,7 @@
 
 module testbench;
 	// Local Parameters
-	localparam clk_period = 83.33; // Clock cycle in ns
+	localparam clk_period = 16; // Clock cycle in ns
 	localparam clk_half_period = clk_period / 2;
 	localparam ser_half_period = 53;
 	localparam freq_show_cycles = 1000;  // Number of clock cycles between each cycle count display
@@ -41,6 +41,13 @@ module testbench;
 		cnt_cycles <= cnt_cycles + 1;
 	end
 
+	reg is_sim_behav;
+	initial begin
+		if (!$value$plusargs("is_sim_behav=%b", is_sim_behav)) begin
+			is_sim_behav = 0; // Default value
+		end
+	end
+
 	// Start simulation
 	integer file;  // File handle
 	initial begin
@@ -57,7 +64,7 @@ module testbench;
         resetn = 1;
 
 		// Create a file store simulation outputs
-		file = $fopen("output.txt", "w");
+		file = $fopen("outputs.txt", "w");
 
 		// Run
 		while (1) begin
@@ -98,6 +105,41 @@ module testbench;
     integer accel_finish_cycles = 0;
 	integer total_accel_cycles = 0;
 
+	logic [7:0] is_accel_enabled;
+	logic [7:0] did_accel_run_once;
+    integer first_accel_start_cycles = 0;
+    integer first_accel_finish_cycles = 0;
+
+	initial begin
+		is_accel_enabled = 0;
+		did_accel_run_once = 0;
+
+		while(1) begin
+			@(posedge clk);
+
+			if (is_sim_behav == 0) begin
+				break; // Skip the rest of the loop if not in behavioral simulation mode
+			end
+
+			if (is_accel_enabled == 0 && dut.accel.fft.enable_accel == 1 && dut.accel.fft.fft_finished == 0) begin
+				accel_start_cycles = cnt_cycles;
+				is_accel_enabled = 1;
+			end else if (is_accel_enabled == 1 && dut.accel.fft.fft_finished == 1) begin
+				accel_finish_cycles = cnt_cycles;    
+				total_accel_cycles = total_accel_cycles + (accel_finish_cycles - accel_start_cycles);
+
+				if (did_accel_run_once == 0) begin
+					first_accel_start_cycles = accel_start_cycles;
+					first_accel_finish_cycles = accel_finish_cycles;
+
+					did_accel_run_once = 1;
+				end
+				
+				is_accel_enabled = 0;
+			end
+		end
+	end
+
 	initial begin
         while(1) begin
             @(negedge ser_tx);
@@ -116,22 +158,24 @@ module testbench;
             repeat (ser_half_period) @(posedge clk);
             repeat (ser_half_period) @(posedge clk);
 
-            if (buffer_tx == 254) begin 			// use -2 ASCII code as signal that the accelerator is starting
-                accel_start_cycles = cnt_cycles;
-            end else if (buffer_tx == 253) begin    // use -3 ASCII code as signal that the accelerator is finished
-                accel_finish_cycles = cnt_cycles;    
-				total_accel_cycles = total_accel_cycles + (accel_finish_cycles - accel_start_cycles);            
-            end else if (buffer_tx == 255) begin    // use -1 ASCII code to stop simulation
+            if (buffer_tx == 255) begin    // use -1 ASCII code to stop simulation
                 $display("Complete latency in Clock Cycles:       %d", cnt_cycles);
-				$display("Accelerator start time in Clock Cycles:    %d", accel_start_cycles);
-                $display("Accelerator runtime in Clock Cycles:    %d", total_accel_cycles);
+				if (is_sim_behav == 1) begin
+					$display("Accelerator runtime in Clock Cycles:    %d", total_accel_cycles);
+				end else begin
+					$display("Accelerator runtime in Clock Cycles:    N/A (not in behavioral simulation mode)");
+				end
                 latency_ms = cnt_cycles * clk_period / 1000.0 / 1000.0;
                 $display("Complete latency in Milliseconds:       %f", latency_ms);
-				latency_ms = accel_start_cycles * clk_period / 1000.0 / 1000.0;
-				$display("Accelerator start time in Milliseconds:    %f", latency_ms);
 				// Accelerator latency is not (yet) updated so that the time for waiting for UART commands is not counted
                 latency_ms = (total_accel_cycles) * clk_period / 1000.0 / 1000.0;
-                $display("Accelerator runtime in Milliseconds:    %f", latency_ms);
+				if (is_sim_behav == 1) begin
+                	$display("Accelerator runtime in Milliseconds:    %f", latency_ms);
+					$display("Acceleration of first chunk started at (Milliseconds): %f", first_accel_start_cycles * clk_period / 1000.0 / 1000.0);
+					$display("Latency of first chunk is (MICROseconds): %f", (first_accel_finish_cycles - first_accel_start_cycles) * clk_period / 1000.0 );
+				end else begin
+					$display("Accelerator runtime in Milliseconds:    N/A (not in behavioral simulation mode)");
+				end
                 $display("##################################################");
                 $display("# End of Testbench 						        ");
                 $display("##################################################");
@@ -154,4 +198,3 @@ module testbench;
     end
     
 endmodule
-
