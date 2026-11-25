@@ -1,0 +1,13 @@
+*.wav
+*.elf
+*.hex
+*.o
+__pycache__/
+workLib/
+outputs/
+checkpoints/
+*.log*
+*.db
+*.gds
+*.sdf
+src/srams/
